@@ -1,0 +1,27 @@
+# secrets and local settings - NEVER commit these
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.sqlite3
+
+# build output, logs, caches
+logs/
+*.log
+staticfiles/
+node_modules/
+frontend/dist/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
