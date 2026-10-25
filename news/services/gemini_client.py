@@ -36,9 +36,34 @@ def _parse_models(raw):
     return order, limits
 
 
-MODELS, MODEL_LIMITS = _parse_models(
-    os.getenv("GEMINI_MODELS", os.getenv("GEMINI_MODEL", "gemini-3.5-flash"))
-)
+DEFAULT_MODELS = "gemini-3.5-flash"
+
+
+def _configured_models(env=None):
+    """
+    Read the model chain from the environment.
+
+    A variable that is set but BLANK (which is what GitHub Actions passes for
+    an undefined optional variable) counts as "not set", so the default is
+    used. A value that contains no usable model is a configuration error and
+    says so clearly, instead of crashing later with "list index out of range".
+    """
+    env = os.environ if env is None else env
+    raw = (
+        (env.get("GEMINI_MODELS") or "").strip()
+        or (env.get("GEMINI_MODEL") or "").strip()
+        or DEFAULT_MODELS
+    )
+    order, limits = _parse_models(raw)
+    if not order:
+        raise RuntimeError(
+            f"GEMINI_MODELS={raw!r} contains no model. Use e.g. "
+            "'gemini-3.5-flash:18:5,gemini-3.1-flash-lite:480:15' or leave it unset."
+        )
+    return order, limits
+
+
+MODELS, MODEL_LIMITS = _configured_models()
 MODEL_NAME = MODELS[0]          # kept for older imports
 
 

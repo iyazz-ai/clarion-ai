@@ -1,3 +1,5 @@
+import traceback
+
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
@@ -24,6 +26,9 @@ class Command(BaseCommand):
                 # One failing step must not stop the later ones.
                 failures.append(f"{command}: {error}")
                 self.stderr.write(self.style.ERROR(f"{command} failed: {error}"))
+                # The one-line message is rarely enough to find the cause, so
+                # also print WHERE it happened (shows up in the Actions log).
+                self.stderr.write(traceback.format_exc())
 
         if failures:
             # Non-zero exit code so Task Scheduler / cron can show the failure.

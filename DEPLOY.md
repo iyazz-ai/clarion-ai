@@ -79,15 +79,36 @@ ship a site that talks to the visitor's own localhost.
 
 1. GitHub repo → **Settings → Secrets and variables → Actions**.
 2. Add **secrets:** `DATABASE_URL`, `DJANGO_SECRET_KEY`, `GEMINI_API_KEY`.
-3. Optional **variable:** `GEMINI_MODELS`, e.g.
+3. Optional **variable** (Variables tab, not Secrets): `GEMINI_MODELS`, e.g.
    `gemini-3.5-flash:18:5,gemini-3.1-flash-lite:480:15`
    (check Google AI Studio → Rate Limit for the real numbers on your account).
+   If you do not create it, that same chain is used as the default.
+
+   > The secret names must match **exactly**: `DATABASE_URL`, `DJANGO_SECRET_KEY`,
+   > `GEMINI_API_KEY`. A secret called just `SECRET_KEY` is not read by Clarion.
 4. **Actions → Update news → Run workflow** once by hand. Watch the log: feeds are
    collected, stories grouped, stories summarised.
 5. The first runs summarise only 20 stories each; run it a few times by hand to
    fill the feed faster, or wait for the 4-hour schedule.
 6. Once this works, **disable the Windows Task Scheduler job** so two
    schedulers are not running.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Actions log: `process_stories failed: list index out of range` | Old code + an undefined optional variable (`GEMINI_MODELS`) | Update to the latest code (fixed in v17). |
+| Actions log: `ImproperlyConfigured: Set DJANGO_SECRET_KEY` | Secret missing or misnamed | Add the secret named exactly `DJANGO_SECRET_KEY`. |
+| Actions log: `could not connect` / SSL errors | `DATABASE_URL` wrong or missing `?sslmode=require` | Re-copy the full connection string from Neon. |
+| Actions log: `Gemini quota reached - stopping` | Daily free quota used up | Not an error. Stories stay queued for the next run. |
+| Website loads but shows no stories, browser console says **CORS** | `CORS_ALLOWED_ORIGINS` on Render does not contain your site URL | Set it to the exact site URL (https, no trailing slash) and redeploy. |
+| Website shows "Unable to reach the API" | `VITE_API_URL` wrong, or the free API is waking up | Check the URL; wait about a minute and retry. |
+| Render: `DisallowedHost` | `ALLOWED_HOSTS` missing your Render hostname | Add it (without `https://`). |
+| Render health check fails | Health path not set, or `SECURE_SSL_REDIRECT` problem | Set the path to `/api/health/` (it is exempt from the redirect). |
+| Feed is empty after the first run | Stories are summarised 20 per run | Run **Update news** a few more times, or wait for the schedule. |
+
+A step failing in `update_news` now prints a full **traceback** in the Actions
+log, so you can see exactly where it broke.
 
 ## 5. Create the admin user (once)
 

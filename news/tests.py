@@ -1059,3 +1059,57 @@ class TrendingFallbackTests(TestCase):
     def test_even_the_fallback_has_a_limit(self):
         self._story("Eight days old", 8 * 24, n=1)
         self.assertNotIn("Eight days old", self._titles())
+
+
+class ModelConfigTests(TestCase):
+    """Regression: GitHub Actions passes GEMINI_MODELS="" when the optional
+    repository variable is not defined; that used to crash with IndexError."""
+
+    def cfg(self, env):
+        from news.services.gemini_client import _configured_models
+        return _configured_models(env)
+
+    def test_blank_value_uses_the_default_model(self):
+        order, _ = self.cfg({"GEMINI_MODELS": ""})
+        self.assertEqual(order, ["gemini-3.5-flash"])
+
+    def test_whitespace_only_value_uses_the_default_model(self):
+        order, _ = self.cfg({"GEMINI_MODELS": "   ", "GEMINI_MODEL": ""})
+        self.assertEqual(order, ["gemini-3.5-flash"])
+
+    def test_unset_uses_the_default_model(self):
+        self.assertEqual(self.cfg({})[0], ["gemini-3.5-flash"])
+
+    def test_explicit_chain_with_limits_is_respected(self):
+        order, limits = self.cfg({"GEMINI_MODELS": "a:18:5, b:480:15"})
+        self.assertEqual(order, ["a", "b"])
+        self.assertEqual(limits["b"], (480, 15))
+
+    def test_legacy_single_model_variable_still_works(self):
+        self.assertEqual(self.cfg({"GEMINI_MODELS": "", "GEMINI_MODEL": "x-model"})[0], ["x-model"])
+
+    def test_a_value_with_no_model_is_a_clear_error_not_an_index_error(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            self.cfg({"GEMINI_MODELS": ",,"})
+        self.assertIn("contains no model", str(ctx.exception))
+
+
+class UpdateNewsDiagnosticsTests(TestCase):
+    def test_a_failing_step_prints_a_traceback_and_later_steps_still_run(self):
+        from io import StringIO
+        from unittest import mock
+        from django.core.management import CommandError, call_command
+        ran = []
+
+        def fake_call(command, **kwargs):
+            ran.append(command)
+            if command == "backfill_stories":
+                raise ValueError("boom in grouping")
+
+        err = StringIO()
+        with mock.patch("news.management.commands.update_news.call_command", side_effect=fake_call):
+            with self.assertRaises(CommandError):
+                call_command("update_news", stdout=StringIO(), stderr=err)
+        self.assertEqual(ran, ["collect_news", "backfill_stories", "process_stories"])
+        self.assertIn("Traceback", err.getvalue())
+        self.assertIn("boom in grouping", err.getvalue())
